@@ -8,12 +8,6 @@ from zope.interface import Attribute, Interface, implementer
 from zope.interface.exceptions import DoesNotImplement
 from zope.interface.verify import verifyObject
 
-from eliot import MessageType, Logger
-from eliot.testing import (
-    issuperset, assertContainsFields, LoggedAction, LoggedMessage,
-    validateLogging,
-    )
-
 from twisted.python.util import FancyStrMixin
 from twisted.python.constants import Names, NamedConstant
 from twisted.trial.unittest import TestCase
@@ -34,6 +28,12 @@ from machinist import (
 
     LOG_FSM_TRANSITION,
     )
+
+from .loglib import (
+    MessageType, Logger,
+    issuperset, assertContainsFields, LoggedAction, LoggedMessage,
+    validateLogging,
+)
 
 
 class Input(Names):

@@ -641,11 +641,11 @@ class FiniteStateMachineTests(TestCase):
 
 class IsTerminalTests(TestCase):
     """
-    Tests for L{_FiniteStateMachine._isTerminal}.
+    Tests for L{FiniteStateLogger._isTerminal}.
     """
     def test_empty(self):
         """
-        L{_FiniteStateMachine._isTerminal} returns C{True} if a state that
+        L{FiniteStateLogger._isTerminal} returns C{True} if a state that
         defines handling of no input symbols.
         """
         fsm = constructFiniteStateMachine(
@@ -657,7 +657,7 @@ class IsTerminalTests(TestCase):
 
     def test_selfTransition(self):
         """
-        L{_FiniteStateMachine._isTerminal} returns C{True} if a state defines
+        L{FiniteStateLogger._isTerminal} returns C{True} if a state defines
         handling of inputs that generate no outputs and do not change the state
         of the machine.
         """
@@ -672,7 +672,7 @@ class IsTerminalTests(TestCase):
 
     def test_output(self):
         """
-        L{_FiniteStateMachine._isTerminal} returns C{False} if a state defines
+        L{FiniteStateLogger._isTerminal} returns C{False} if a state defines
         handling of inputs that generate any output.
         """
         transitions = TRANSITIONS.addTransition(
@@ -686,7 +686,7 @@ class IsTerminalTests(TestCase):
 
     def test_stateChange(self):
         """
-        L{_FiniteStateMachine._isTerminal} returns C{False} if a state defines
+        L{FiniteStateLogger._isTerminal} returns C{False} if a state defines
         handling of inputs that cause a state change.
         """
         transitions = TRANSITIONS.addTransition(

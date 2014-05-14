@@ -5,113 +5,15 @@
 Implementation details for machinist's public interface.
 """
 
-from zope.interface import Attribute, Interface, implementer, provider
+from zope.interface import implementer, provider
 from zope.interface.exceptions import DoesNotImplement
 
-from eliot import Field, ActionType, Logger
-
 from twisted.python.util import FancyStrMixin, FancyEqMixin
-from twisted.python.components import proxyForInterface
-from twisted.internet.defer import succeed
 
-def _system(suffix):
-    return u":".join((u"fsm", suffix))
+from eliot import Logger
 
-
-FSM_IDENTIFIER = Field.forTypes(
-    u"fsm_identifier", [unicode],
-    u"An unique identifier for the FSM to which the event pertains.")
-FSM_STATE = Field.forTypes(
-    u"fsm_state", [unicode], u"The state of the FSM prior to the transition.")
-FSM_RICH_INPUT = Field.forTypes(
-    u"fsm_rich_input", [unicode],
-    u"The string representation of the rich input delivered to the FSM.")
-FSM_INPUT = Field.forTypes(
-    u"fsm_input", [unicode],
-    u"The string representation of the input symbol delivered to the FSM.")
-FSM_NEXT_STATE = Field.forTypes(
-    u"fsm_next_state", [unicode],
-    u"The string representation of the state of the FSM after the transition.")
-FSM_OUTPUT = Field.forTypes(
-    u"fsm_output", [list], # of unicode
-    u"A list of the string representations of the outputs produced by the "
-    u"transition.")
-FSM_TERMINAL_STATE = Field.forTypes(
-    u"fsm_terminal_state", [unicode],
-    u"The string representation of the terminal state entered by the the FSM.")
-
-LOG_FSM_INITIALIZE = ActionType(
-    _system(u"initialize"),
-    [FSM_IDENTIFIER, FSM_STATE],
-    [FSM_TERMINAL_STATE],
-    [],
-    u"A finite state machine was initialized.")
-
-LOG_FSM_TRANSITION = ActionType(
-    _system(u"transition"),
-    [FSM_IDENTIFIER, FSM_STATE, FSM_RICH_INPUT, FSM_INPUT],
-    [FSM_NEXT_STATE, FSM_OUTPUT],
-    [],
-    u"A finite state machine received an input made a transition.")
-
-class IFiniteStateMachine(Interface):
-    """
-    A finite state machine.
-    """
-    state = Attribute("The current state of the machine.")
-
-    # We could probably make the state, input, and output types part of this
-    # interface as well.  This could facilitate more advanced tools for
-    # operating on state machines (eg, tools for chaining several together).
-
-    def receive(input):
-        """
-        Accept an input, transition to the next state, and return the generated
-        output.
-
-        @raise UnhandledInput: If the received input is not acceptable in the
-            current state.
-
-        @raise IllegalInput: If the received input is not acceptable in any
-            state by this state machine.
-        """
-
-
-
-class IOutputExecutor(Interface):
-    """
-    Perform tasks and cause side-effects associated with outputs from a
-    L{IFiniteStateMachine}.
-    """
-    def identifier():
-        """
-        Return a constant L{unicode} string that should uniquely identify this
-        executor.  This will be used to uniquely identify log events associated
-        with it.
-
-        @rtype: L{unicode}
-        """
-
-
-    def output(output, context):
-        """
-        Perform the operations associated with a particular output.
-        """
-
-
-
-class IRichInput(Interface):
-    """
-    A L{IRichInput} implementation corresponds to a particular symbol in the
-    input alphabet of a state machine but may also carry additional
-    information.
-    """
-    def symbol():
-        """
-        Return the symbol from the input alphabet to which this input
-        corresponds.
-        """
-
+from ._interface import IRichInput, IOutputExecutor, IFiniteStateMachine
+from ._logging import FiniteStateLogger
 
 
 class StateMachineDefinitionError(Exception):
@@ -415,10 +317,11 @@ def constructFiniteStateMachine(inputs, outputs, states, table, initial,
 
     fsm = _FiniteStateMachine(inputs, outputs, states, table, initial)
     executor = IOutputExecutor(world)
-    return _FiniteStateLogger(
-        _FiniteStateInterpreter(
-            tuple(richInputs), inputContext, fsm, executor),
-        logger, executor.identifier())
+    interpreter = _FiniteStateInterpreter(
+        tuple(richInputs), inputContext, fsm, executor)
+    interpreter = FiniteStateLogger(
+        interpreter, logger, executor.identifier())
+    return interpreter
 
 
 
@@ -534,70 +437,6 @@ class _FiniteStateMachine(object):
 
         self.state = transition.nextState
         return transition.output
-
-
-
-class _FiniteStateLogger(proxyForInterface(IFiniteStateMachine, "_fsm")):
-    """
-    L{_FiniteStateLogger} wraps another L{IFiniteStateMachine} provider and
-    adds to it logging of all state transitions.
-    """
-    def __init__(self, fsm, logger, identifier):
-        super(_FiniteStateLogger, self).__init__(fsm)
-        self.logger = logger
-        self.identifier = identifier
-        self._action = LOG_FSM_INITIALIZE(
-            logger, fsm_identifier=identifier, fsm_state=unicode(fsm.state))
-
-
-    def receive(self, input):
-        """
-        Add logging of state transitions to the wrapped state machine.
-
-        @see: L{IFiniteStateMachine.receive}
-        """
-        action = LOG_FSM_TRANSITION(
-            self.logger,
-            fsm_identifier=self.identifier,
-            fsm_state=unicode(self.state),
-            fsm_rich_input=unicode(input),
-            fsm_input=unicode(input.symbol()))
-        with action as theAction:
-            output = super(_FiniteStateLogger, self).receive(input)
-            theAction.addSuccessFields(
-                fsm_next_state=unicode(self.state), fsm_output=[unicode(o) for o in output])
-
-        if self._action is not None and self._isTerminal(self.state):
-            self._action.addSuccessFields(
-                fsm_terminal_state=unicode(self.state))
-            # Better API will be available after
-            # https://www.pivotaltracker.com/s/projects/787341/stories/59751070
-            # is done.
-            self._action.finishAfter(succeed(None))
-            self._action = None
-
-        return output
-
-
-    def _isTerminal(self, state):
-        """
-        Determine if a state is terminal.
-
-        A state is terminal if there are no outputs or state changes defined
-        for any inputs in that state.
-
-        @rtype: L{bool}
-        """
-        # This only works with _FiniteStateMachine not with arbitrary
-        # IFiniteStateMachine since these attributes aren't part of the
-        # interface.  This is private with the idea that maybe terminal should
-        # be defined differently eventually - perhaps by accepting an explicit
-        # set of terminal states in constructFiniteStateMachine.
-        # https://www.pivotaltracker.com/story/show/59999580
-        return all(
-            transition.output == [] and transition.nextState == state
-            for (input, transition)
-            in self._fsm._fsm.table[state].iteritems())
 
 
 

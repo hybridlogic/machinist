@@ -114,8 +114,12 @@ __all__ = [
     "LOG_FSM_TRANSITION",
     ]
 
-from ._fsm import (
+
+from ._interface import (
     IFiniteStateMachine, IOutputExecutor, IRichInput,
+)
+
+from ._fsm import (
     StateMachineDefinitionError, ExtraTransitionState,
     MissingTransitionState, ExtraTransitionInput,
     MissingTransitionInput, ExtraTransitionOutput,
@@ -126,7 +130,9 @@ from ._fsm import (
 
     Transition, TransitionTable, trivialInput, constructFiniteStateMachine,
     MethodSuffixOutputer, stateful,
+)
 
+from ._logging import (
     LOG_FSM_INITIALIZE,
     LOG_FSM_TRANSITION,
 )

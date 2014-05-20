@@ -4,7 +4,13 @@ python:
   - 2.7
   - pypy
 
+env:
+  - "FOO=bar"
+  - "FOO=$(echo dollar paren)"
+  - "FOO=`echo backtick`"
+
 install:
+  - echo "Foo=${FOO}"
   - pip install coveralls coverage
   - python setup.py --version
   - pip install -e.
